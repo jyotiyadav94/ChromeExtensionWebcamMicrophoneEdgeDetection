@@ -1,12 +1,9 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
     // get DOM elements
     var dataChannelLog = document.getElementById('data-channel'),
         iceConnectionLog = document.getElementById('ice-connection-state'),
         iceGatheringLog = document.getElementById('ice-gathering-state'),
-        signalingLog = document.getElementById('signaling-state'),
-        startButton = document.getElementById('start'),
-        stopButton = document.getElementById('stop'),
-        mediaContainer = document.getElementById('media');
+        signalingLog = document.getElementById('signaling-state');
 
     // peer connection
     var pc = null;
@@ -20,52 +17,70 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         if (document.getElementById('use-stun').checked) {
-            config.iceServers = [{urls: ['stun:stun.l.google.com:19302']}];
+            config.iceServers = [{ urls: ['stun:stun.l.google.com:19302'] }];
         }
 
         pc = new RTCPeerConnection(config);
 
-        // register listeners for ICE gathering, ICE connection, and signaling state changes
-        pc.addEventListener('icegatheringstatechange', function() {
+        // register some listeners to help debugging
+        pc.addEventListener('icegatheringstatechange', () => {
             iceGatheringLog.textContent += ' -> ' + pc.iceGatheringState;
-            console.log('ICE Gathering State:', pc.iceGatheringState);
-        });
+        }, false);
         iceGatheringLog.textContent = pc.iceGatheringState;
 
-        pc.addEventListener('iceconnectionstatechange', function() {
+        pc.addEventListener('iceconnectionstatechange', () => {
             iceConnectionLog.textContent += ' -> ' + pc.iceConnectionState;
-            console.log('ICE Connection State:', pc.iceConnectionState);
-        });
+        }, false);
         iceConnectionLog.textContent = pc.iceConnectionState;
 
-        pc.addEventListener('signalingstatechange', function() {
+        pc.addEventListener('signalingstatechange', () => {
             signalingLog.textContent += ' -> ' + pc.signalingState;
-            console.log('Signaling State:', pc.signalingState);
-        });
+        }, false);
         signalingLog.textContent = pc.signalingState;
 
         // connect audio / video
-        pc.addEventListener('track', function(evt) {
-            if (evt.track.kind === 'video') {
+        pc.addEventListener('track', (evt) => {
+            if (evt.track.kind == 'video')
                 document.getElementById('video').srcObject = evt.streams[0];
-                console.log('Video track added');
-            } else {
+            else
                 document.getElementById('audio').srcObject = evt.streams[0];
-                console.log('Audio track added');
-            }
         });
 
         return pc;
     }
 
+    function enumerateInputDevices() {
+        const populateSelect = (select, devices) => {
+            let counter = 1;
+            devices.forEach((device) => {
+                const option = document.createElement('option');
+                option.value = device.deviceId;
+                option.text = device.label || ('Device #' + counter);
+                select.appendChild(option);
+                counter += 1;
+            });
+        };
+
+        navigator.mediaDevices.enumerateDevices().then((devices) => {
+            populateSelect(
+                document.getElementById('audio-input'),
+                devices.filter((device) => device.kind == 'audioinput')
+            );
+            populateSelect(
+                document.getElementById('video-input'),
+                devices.filter((device) => device.kind == 'videoinput')
+            );
+        }).catch((e) => {
+            alert(e);
+        });
+    }
+
     function negotiate() {
-        return pc.createOffer().then(function(offer) {
-            console.log('Offer created:', offer);
+        return pc.createOffer().then((offer) => {
             return pc.setLocalDescription(offer);
-        }).then(function() {
-            console.log('Local description set');
+        }).then(() => {
             // wait for ICE gathering to complete
-            return new Promise(function(resolve) {
+            return new Promise((resolve) => {
                 if (pc.iceGatheringState === 'complete') {
                     resolve();
                 } else {
@@ -78,7 +93,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     pc.addEventListener('icegatheringstatechange', checkState);
                 }
             });
-        }).then(function() {
+        }).then(() => {
             var offer = pc.localDescription;
             var codec;
 
@@ -93,145 +108,160 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             document.getElementById('offer-sdp').textContent = offer.sdp;
-            console.log('Sending offer:', offer);
-            return fetch('/offer', {
+            return fetch('http://127.0.0.1:8080/offer', {
                 body: JSON.stringify({
                     sdp: offer.sdp,
                     type: offer.type,
                     video_transform: document.getElementById('video-transform').value
                 }),
-                mode: "cors",
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 method: 'POST'
             });
-        }).then(function(response) {
-            console.log('Offer sent, response received:', response);
+        }).then((response) => {
             return response.json();
-        }).then(function(answer) {
+        }).then((answer) => {
             document.getElementById('answer-sdp').textContent = answer.sdp;
-            
-            // Display the pc_id in console and DOM
-            console.log("PC ID:", answer.pc_id);
-            document.getElementById('pc-id').textContent = "PC ID: " + answer.pc_id;
-
-            console.log('Setting remote description:', answer);
             return pc.setRemoteDescription(answer);
-        }).catch(function(e) {
-            console.error('Error during negotiation:', e);
+        }).catch((e) => {
             alert(e);
         });
     }
 
-    // Event listener for the Start button
-    startButton.addEventListener('click', function() {
-        console.log('Start button clicked');
-        // Hide Start button, show Stop button
-        startButton.style.display = 'none';
-        stopButton.style.display = 'inline-block';
-
-        // Call the start function to initialize the WebRTC connection and media
-        start();
-    });
-
-    // Event listener for the Stop button
-    stopButton.addEventListener('click', function() {
-        console.log('Stop button clicked');
-        // Hide Stop button, show Start button
-        stopButton.style.display = 'none';
-        startButton.style.display = 'inline-block';
-
-        // Call the stop function to end the WebRTC connection and media
-        stop();
-    });
-
     function start() {
-        console.log('Starting WebRTC connection');
-        pc = createPeerConnection(); // Establish peer connection
+        document.getElementById('start').style.display = 'none';
 
-        var constraints = {
-            audio: document.getElementById('use-audio').checked,
-            video: false
+        pc = createPeerConnection();
+
+        var time_start = null;
+
+        const current_stamp = () => {
+            if (time_start === null) {
+                time_start = new Date().getTime();
+                return 0;
+            } else {
+                return new Date().getTime() - time_start;
+            }
         };
 
-        // Check for video
-        if (document.getElementById('use-video').checked) {
-            var resolution = document.getElementById('video-resolution').value;
-            if (resolution) {
-                resolution = resolution.split('x');
-                constraints.video = {
-                    width: parseInt(resolution[0], 10),
-                    height: parseInt(resolution[1], 10)
-                };
-            } else {
-                constraints.video = true; // Use default video settings
-            }
-        }
+        if (document.getElementById('use-datachannel').checked) {
+            var parameters = JSON.parse(document.getElementById('datachannel-parameters').value);
 
-        // If either audio or video is enabled, start media stream
-        if (constraints.audio || constraints.video) {
-            mediaContainer.style.display = 'block';  // Show the media section
-            console.log('Requesting media stream with constraints:', constraints);
-            navigator.mediaDevices.getUserMedia(constraints).then(function(stream) {
-                console.log('Media stream acquired:', stream);
-                stream.getTracks().forEach(function(track) {
-                    pc.addTrack(track, stream);  // Add media tracks to the peer connection
-                });
-
-                // Assign local video stream to the video element
-                document.getElementById('video').srcObject = stream;
-
-                return negotiate();  // Begin negotiation for WebRTC
-            }).catch(function(err) {
-                console.error('Error acquiring media:', err);
-                alert('Error acquiring media: ' + err);  // Handle error
+            dc = pc.createDataChannel('chat', parameters);
+            dc.addEventListener('close', () => {
+                clearInterval(dcInterval);
+                dataChannelLog.textContent += '- close\n';
             });
-        } else {
-            console.log('No media selected, continuing with negotiation');
-            negotiate();  // If no media selected, continue with negotiation
-        }
-    }
+            dc.addEventListener('open', () => {
+                dataChannelLog.textContent += '- open\n';
+                dcInterval = setInterval(() => {
+                    var message = 'ping ' + current_stamp();
+                    dataChannelLog.textContent += '> ' + message + '\n';
+                    dc.send(message);
+                }, 1000);
+            });
+            dc.addEventListener('message', (evt) => {
+                dataChannelLog.textContent += '< ' + evt.data + '\n';
 
-    function stop() {
-        console.log('Stopping WebRTC connection');
-        // Close the peer connection
-        if (dc) {
-            dc.close();  // Close data channel
-            console.log('Data channel closed');
-        }
-
-        // Stop the transceivers if available
-        if (pc.getTransceivers) {
-            pc.getTransceivers().forEach(function(transceiver) {
-                if (transceiver.stop) {
-                    transceiver.stop();  // Stop each transceiver
-                    console.log('Transceiver stopped:', transceiver);
+                if (evt.data.substring(0, 4) === 'pong') {
+                    var elapsed_ms = current_stamp() - parseInt(evt.data.substring(5), 10);
+                    dataChannelLog.textContent += ' RTT ' + elapsed_ms + ' ms\n';
                 }
             });
         }
 
-        // Stop the local audio and video tracks
-        pc.getSenders().forEach(function(sender) {
-            sender.track.stop();  // Stop each media track
-            console.log('Media track stopped:', sender.track);
+        // Build media constraints.
+
+        const constraints = {
+            audio: false,
+            video: false
+        };
+
+        if (document.getElementById('use-audio').checked) {
+            const audioConstraints = {};
+
+            const device = document.getElementById('audio-input').value;
+            if (device) {
+                audioConstraints.deviceId = { exact: device };
+            }
+
+            constraints.audio = Object.keys(audioConstraints).length ? audioConstraints : true;
+        }
+
+        if (document.getElementById('use-video').checked) {
+            const videoConstraints = {};
+
+            const device = document.getElementById('video-input').value;
+            if (device) {
+                videoConstraints.deviceId = { exact: device };
+            }
+
+            const resolution = document.getElementById('video-resolution').value;
+            if (resolution) {
+                const dimensions = resolution.split('x');
+                videoConstraints.width = parseInt(dimensions[0], 0);
+                videoConstraints.height = parseInt(dimensions[1], 0);
+            }
+
+            constraints.video = Object.keys(videoConstraints).length ? videoConstraints : true;
+        }
+
+        // Acquire media and start negotiation.
+
+        if (constraints.audio || constraints.video) {
+            if (constraints.video) {
+                document.getElementById('media').style.display = 'block';
+            }
+            navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+                stream.getTracks().forEach((track) => {
+                    pc.addTrack(track, stream);
+                });
+                return negotiate();
+            }, (err) => {
+                alert('Could not acquire media: ' + err);
+            });
+        } else {
+            negotiate();
+        }
+
+        document.getElementById('stop').style.display = 'inline-block';
+    }
+
+    function stop() {
+        document.getElementById('stop').style.display = 'none';
+
+        // close data channel
+        if (dc) {
+            dc.close();
+        }
+
+        // close transceivers
+        if (pc.getTransceivers) {
+            pc.getTransceivers().forEach((transceiver) => {
+                if (transceiver.stop) {
+                    transceiver.stop();
+                }
+            });
+        }
+
+        // close local audio / video
+        pc.getSenders().forEach((sender) => {
+            sender.track.stop();
         });
 
-        // Close the peer connection after a brief delay
-        setTimeout(function() {
-            pc.close();  // Close peer connection
-            console.log('Peer connection closed');
+        // close peer connection
+        setTimeout(() => {
+            pc.close();
         }, 500);
-
-        mediaContainer.style.display = 'none';  // Hide media container when stopped
     }
 
     function sdpFilterCodec(kind, codec, realSdp) {
-        var allowed = [];
+        var allowed = []
         var rtxRegex = new RegExp('a=fmtp:(\\d+) apt=(\\d+)\r$');
-        var codecRegex = new RegExp('a=rtpmap:([0-9]+) ' + escapeRegExp(codec));
-        var videoRegex = new RegExp('(m=' + kind + ' .*?)( ([0-9]+))*\\s*$');
-        
+        var codecRegex = new RegExp('a=rtpmap:([0-9]+) ' + escapeRegExp(codec))
+        var videoRegex = new RegExp('(m=' + kind + ' .*?)( ([0-9]+))*\\s*$')
+
         var lines = realSdp.split('\n');
 
         var isKind = false;
@@ -286,4 +316,9 @@ document.addEventListener('DOMContentLoaded', function() {
     function escapeRegExp(string) {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
     }
+
+    enumerateInputDevices();
+
+    document.getElementById('start').addEventListener('click', start);
+    document.getElementById('stop').addEventListener('click', stop);
 });
