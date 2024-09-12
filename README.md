@@ -50,24 +50,18 @@ Steps
 - Click on the "Load unpacked" button.
 - Select the extension directory.
 
-
+start the server 
+   ```bash 
+   python server.py
+   ```
 
 Click on the "Start" button.
 
-<img width="1292" alt="Screenshot 2024-09-12 at 11 54 11" src="https://github.com/user-attachments/assets/bcfe7b78-efcf-4089-ab65-74fef7cdf66a">
-
-## **Error **
-TypeError: Failed to fetch
-
-<img width="1292" alt="Screenshot 2024-09-12 at 11 54 11" src="https://github.com/user-attachments/assets/bcfe7b78-efcf-4089-ab65-74fef7cdf66a">
+<img width="1361" alt="Screenshot 2024-09-12 at 14 31 29" src="https://github.com/user-attachments/assets/fc213cee-8720-44e6-adf7-657a388a06ce">
+<img width="1361" alt="Screenshot 2024-09-12 at 14 31 25" src="https://github.com/user-attachments/assets/2799a458-8b90-47b8-a163-917911ed6ab3">
+<img width="1361" alt="Screenshot 2024-09-12 at 14 31 15" src="https://github.com/user-attachments/assets/db8b9e40-7861-41a4-ac60-424771fa194c">
 
 
-Error - The error is an extension that shows an error with a popup **TypeError: Failed to fetch**. While this works fine on the API but doesn't seems to be working on the extension. 
 
-Main files for extension issues 
-1. Client.js
-2. popup.html
-3. manifest.json
-4. welcome.html
-5. welcome.js
-6. app.py 
+
+
