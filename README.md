@@ -48,7 +48,7 @@ Steps
 - Open Chrome and navigate to chrome://extensions/.
 - Enable "Developer mode" by toggling the switch in the top right corner.
 - Click on the "Load unpacked" button.
-- Select the extension directory (Lifeverse).
+- Select the extension directory.
 
 
 
